@@ -1,0 +1,40 @@
+import java.io.File
+import java.io.InputStream
+import java.nio.charset.Charset
+import java.nio.charset.CodingErrorAction
+import org.mozilla.universalchardet.UniversalDetector
+
+fun detectCharset(file: File): Charset? {
+    // Используем библиотеку juniversalchardet для детекции
+    val detector = UniversalDetector(null)
+    file.inputStream().use { input ->
+        val buf = ByteArray(4096)
+        var nread: Int
+        while (input.read(buf).also { nread = it } > 0 && !detector.isDone) {
+            detector.handleData(buf, 0, nread)
+        }
+        detector.dataEnd()
+    }
+    val encoding = detector.detectedCharset
+    detector.reset()
+    return if (encoding != null) Charset.forName(encoding) else null
+}
+
+fun readFileWithDetectedCharset(file: File) {
+    val charset = detectCharset(file) ?: Charset.defaultCharset()
+    // Для безопасного чтения с игнорированием ошибок декодирования
+    val decoder = charset.newDecoder()
+    decoder.onMalformedInput(CodingErrorAction.REPLACE)
+    decoder.onUnmappableCharacter(CodingErrorAction.REPLACE)
+
+    file.inputStream().bufferedReader(decoder).use { reader ->
+        reader.forEachLine { line ->
+            println(line)
+        }
+    }
+}
+
+fun main() {
+    val file = File("путь/к/вашему/файлу.txt")
+    readFileWithDetectedCharset(file)
+}
